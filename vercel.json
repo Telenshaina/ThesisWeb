@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "frontend/**",
+      "src": "devratedraft/**",
       "use": "@vercel/static-build",
       "config": {
         "buildCommand": "npm run build --prefix frontend" 
       }
     },
     {
-      "src": "backend/service.js",
+      "src": "devratebe/service.js",
       "use": "@vercel/node",
       "config": {
         "maxDuration": 10 
@@ -20,12 +20,12 @@
     
     {
       "src": "/api/(.*)",
-      "dest": "backend/service.js" 
+      "dest": "devratebe/service.js" 
     },
 
     {
       "src": "/(.*)",
-      "dest": "frontend/$1"
+      "dest": "devratedraft/$1"
     }
   ],
 
