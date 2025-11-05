@@ -3,21 +3,15 @@
   "builds": [
     {
       "src": "devratedraft/**",
-      "use": "@vercel/static-build",
-      "config": {
-        "buildCommand": "npm run build --prefix frontend" 
-      }
+      "use": "@vercel/static" 
     },
     {
       "src": "devratebe/service.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 10 
-      }
+      "use": "@vercel/node"
     }
   ],
   "routes": [
-    
+   
     {
       "src": "/api/(.*)",
       "dest": "devratebe/service.js" 
@@ -25,10 +19,7 @@
 
     {
       "src": "/(.*)",
-      "dest": "devratedraft/$1"
+      "dest": "devratedraft/$1" 
     }
-  ],
-
-  "installCommand": "npm install --prefix frontend && npm install --prefix backend",
-  "buildCommand": "npm run build --prefix frontend"
+  ]
 }
