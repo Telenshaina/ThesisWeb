@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEVRate Compiler </title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.min.css">
+    
+    <style>
+        /* Base styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden; 
+        }
+        /* Fix for Monaco & Xterm containers to stretch correctly inside flex parent */
+        #editor-container, #terminal-container {
+            flex-grow: 1; 
+            
+         }
+        /* Specific Xterm viewport fix (optional, but good practice) */
+        .xterm .xterm-viewport {
+            overflow-y: auto !important;
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/loader.js"></script>
+    <script>
+        // Configure the Monaco loader base URL *before* the editor is initialized.
+        window.require.config({ 
+            paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs' }
+        });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.9.0/lib/xterm-addon-fit.js"></script>
+
+</head>
+<body class="bg-gray-100 h-screen w-screen flex flex-col">
+
+    <header class="bg-white shadow-md p-4 flex justify-between items-center z-10 border-b-4 border-blue-600">
+        <h1 class="text-2xl font-extrabold text-pink-700">
+            DEVRate Compiler
+        </h1>
+        
+        <div class="flex items-center space-x-4">
+            <select id="languageSelector" class="px-3 py-2 border border-gray-300 rounded-lg shadow-inner focus:ring-blue-500 focus:border-blue-500 text-gray-700 font-medium cursor-pointer">
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="cpp">C++</option>
+            </select>
+            
+                        <button id="saveButton"
+                class="px-5 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-lg hover:bg-gray-700 active:bg-gray-800 transition duration-300 transform hover:scale-[1.02]"
+            >
+                ⬇ Save File
+            </button>
+            
+            <button id="runButton"
+                class="px-5 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-700 active:bg-blue-800 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+            >
+                ▶ Run Code
+            </button>
+            
+            <button id="aiCheckButton"
+                class="px-5 py-2 bg-pink-600 text-white font-semibold rounded-lg shadow-lg hover:bg-green-700 active:bg-green-800 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+            >
+                🤖 AI Check
+            </button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden p-4 space-x-4">
+            
+            <div class="flex flex-col flex-1 rounded-xl shadow-2xl overflow-hidden bg-white">
+            <div id="editorTitle" class="p-3 bg-gray-700 text-white font-mono text-sm border-b border-gray-600 font-bold">
+                Code Editor (Python)
+            </div>
+            <div id="editor-container" class="flex-1 min-h-0">
+                </div>
+        </div>
+
+            <div class="flex flex-col flex-1 space-y-0.5">
+                
+            <div class="flex flex-col flex-grow-[6] rounded-xl shadow-2xl overflow-hidden bg-white border-t border-gray-300">
+                <div class="p-4 bg-gray-700 text-white font-extrabold text-sm border-b border-gray-600">
+                 Output View
+                </div>
+                <pre id="simpleOutputView" class="flex-100 p-10 text-sm font-mono  text-gray-900 bg-gray-50 overflow-auto">
+                    Output will appear here.
+                </pre>
+            </div>
+
+            <div class="flex flex-col flex-1 space-y-0.5"></div>
+
+            <div class="flex flex-col flex-grow-[5] rounded-xl shadow-2xl overflow-hidden bg-white border-t border-gray-300">
+                <div class="p-4 bg-gray-700 text-white font-extrabold text-sm border-b border-gray-600">
+                    AI Code Detection Status
+                </div>
+                <pre id="aiDetectionResult" class="flex-1 flex items-center  p-3  text-md font-semibold text-gray-500 bg-gray-50">
+                    Run AI Check to assess originality...
+                </pre>
+            </div>
+
+            
+
+            
+</main>
+
+    <footer class="p-2 text-center text-xs text-gray-500 bg-gray-200 border-t">
+        For Shaina and Faye hehe. DEVRate powered by Monaco Editor . Compiler and AI checks are simulated client-side.
+    </footer>
+
+    <script>
+        // Global variables for instances
+        let monacoEditor = null;
+        let xtermInstance = null;
+        let fitAddonInstance = null;
+        let currentLanguage = 'python'; 
+        const aiResultElement = document.getElementById('aiDetectionResult');
+        const editorTitleElement = document.getElementById('editorTitle');
+        const languageSelector = document.getElementById('languageSelector');
+
+        // Initial code templates
+        const codeTemplates = {
+            python: 'x = 10\ny = 5\nsum=x+y\nprint(sum)',
+            java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}',
+            cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello from C++!" << std::endl;\n    return 0;\n}'
+        };
+
+        // --- Terminal Utility Functions ---
+        const simpleOutputElement = document.getElementById('simpleOutputView'); 
+
+// --- Terminal Utility Functions ---
+    const writeToTerminal = (text, clear = true) => {
+    
+    
+    
+    
+    // 2. Simple HTML Output Logic (The working fallback)
+    if (simpleOutputElement) {
+        // Regex to remove all ANSI escape codes for clean display in standard HTML
+        const plainText = text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+        
+        if (clear) {
+             // Set a header when clearing
+             simpleOutputElement.textContent = "--- Execution Results ---\n\n";
+        }
+        
+        // Set the actual output content
+        simpleOutputElement.textContent = plainText;
+        simpleOutputElement.scrollTop = simpleOutputElement.scrollHeight; // Scroll to bottom
+    }
+};
+
+       // 🌟 NEW: Real Code Execution function using the Vite Proxy 🌟
+const executeCode = async (code, language) => {
+    const languageMap = {
+        'python': 'python3',
+        'java': 'java',
+        'cpp': 'cpp',
+    };
+    const jdoodleLanguage = languageMap[language] || language;
+    
+    // ⭐️ CRITICAL CHANGE HERE: Using the relative path for the Vite proxy ⭐️
+    const url = '/api/execute'; 
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                script: code,
+                language: jdoodleLanguage
+            })
+        });
+        // ... (rest of the executeCode logic)
+        if (!response.ok) {
+            return { 
+                output: `\x1b[31;1mProxy Error:\x1b[0m Failed to reach the compiler service. Status: ${response.status}`,
+                statusCode: 99
+            };
+        }
+        const data = await response.json();
+        return data; 
+    } catch (error) {
+        console.error("Fetch error:", error);
+        return { 
+            output: `\x1b[31;1mNetwork Error:\x1b[0m Could not connect to the compiler service. Is the backend running on port 3000?`,
+            statusCode: 100
+        };
+    }
+};
+
+        // --- Code Saving Function ---
+        const saveCode = () => {
+            if (!monacoEditor) {
+                writeToTerminal('Editor not initialized. Cannot save file.', true);
+                return;
+            }
+
+            const codeContent = monacoEditor.getValue();
+            const language = currentLanguage;
+            
+            // 1. Determine the file extension
+            const extensionMap = {
+                'python': 'py',
+                'java': 'java',
+                'cpp': 'cpp', // C++ is often .cpp or .cc
+                'default': 'txt'
+            };
+            const extension = extensionMap[language] || extensionMap['default'];
+            const fileName = `DEVRate_Code.${extension}`;
+
+            // 2. Create a Blob (Binary Large Object) from the code content
+            const blob = new Blob([codeContent], { type: 'text/plain;charset=utf-8' });
+
+            // 3. Create a temporary download link
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName; // Set the suggested file name
+
+            // 4. Trigger the download and clean up
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href); // Free up memory
+
+            writeToTerminal(`File saved successfully as: ${fileName}`, false);
+        };
+
+        // --- AI Detection Simulation ---
+        const simulateAIDetection = (code) => {
+            // Dummy logic: Check code length and random chance
+            const isLongCode = code.length > 300;
+            const isAIDetected = Math.random() < (isLongCode ? 0.2 : 0.05); // Higher chance for longer code
+            
+            // Clear previous styles and set new state
+            aiResultElement.className = 'flex-1 flex items-center justify-center p-4 text-center text-lg font-semibold transition-all duration-300';
+            
+            if (isAIDetected) {
+                // Red/Error state
+                aiResultElement.classList.add('bg-red-100', 'text-red-700', 'border-4', 'border-red-500');
+                aiResultElement.innerHTML = '<span class="text-2xl mr-2">🚨</span> AI Detected: High Similarity (92%)';
+            } else {
+                // Green/Success state
+                aiResultElement.classList.add('bg-green-100', 'text-green-700', 'border-4', 'border-green-500');
+                aiResultElement.innerHTML = '<span class="text-2xl mr-2">✅</span> Code Human-Authored: Low Similarity (5%)';
+            }
+        };
+
+
+        // --- Language Switcher Logic ---
+        const updateEditorLanguage = (newLang) => {
+            if (!monacoEditor || typeof monaco === 'undefined') {
+                currentLanguage = newLang; // Set the variable even if editor isn't ready
+                return;
+            }
+
+            currentLanguage = newLang;
+
+            // 1. Update Monaco Model Language
+            monaco.editor.setModelLanguage(monacoEditor.getModel(), newLang);
+            
+            // 2. Update Code with new template only if current code is near default
+            const currentValue = monacoEditor.getValue().trim();
+            const isDefault = Object.values(codeTemplates).some(template => template.trim() === currentValue);
+            
+            if (isDefault || currentValue.length < 50) { 
+                monacoEditor.setValue(codeTemplates[newLang]);
+            }
+            
+            // 3. Update UI Title
+            const titleMap = { 'python': 'Python', 'java': 'Java', 'cpp': 'C++' };
+            editorTitleElement.textContent = `Code Editor (${titleMap[newLang]})`;
+
+            // 4. Update Terminal for feedback
+            writeToTerminal(`Language switched to ${titleMap[newLang]}.`, true);
+            
+            // 5. Reset AI Detection Status
+            aiResultElement.className = 'flex-1 flex items-center justify-center p-4 text-center text-lg font-semibold text-gray-500 bg-gray-50';
+            aiResultElement.innerHTML = 'Run AI Check to assess originality...';
+        };
+
+        const setupLanguageSwitcher = () => {
+            if (languageSelector) {
+                languageSelector.addEventListener('change', (event) => {
+                    updateEditorLanguage(event.target.value);
+                });
+                // Set initial state based on default selection
+                updateEditorLanguage(languageSelector.value);
+            }
+        };
+
+
+        // --- Initialization Functions ---
+
+        const initMonaco = () => {
+            window.require(['vs/editor/editor.main'], function(monaco) {
+                const editorContainer = document.getElementById('editor-container');
+                if (!monaco || !editorContainer) return;
+                
+                monacoEditor = monaco.editor.create(editorContainer, {
+                    value: codeTemplates[currentLanguage],
+                    language: currentLanguage, 
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    // Optional: Customizing scrollbars for aesthetic
+                    scrollbar: {
+                        vertical: 'visible',
+                        horizontal: 'auto',
+                        verticalScrollbarSize: 10,
+                        horizontalScrollbarSize: 10
+                    }
+                });
+            });
+        };
+
+          const initXterm = () => {
+            const terminalContainer = document.getElementById('terminal-container');
+            const Terminal = window.Terminal;
+            const FitAddon = window.FitAddon;
+            
+            if (!Terminal || !FitAddon || !terminalContainer) return;
+            
+            xtermInstance = new Terminal({
+                cursorBlink: true,
+                fontFamily: 'Consolas, "Courier New", monospace',
+                fontSize: 14,
+                // Use Tailwind's gray-800/900 colors for theme consistency
+                theme: {
+                    background: '#1f2937', // gray-800
+                    foreground: '#ffffff', // gray-100
+                    cursor: '#f3f4f6',
+                }
+            });
+
+            fitAddonInstance = new FitAddon();
+            xtermInstance.loadAddon(fitAddonInstance);
+            xtermInstance.open(terminalContainer);
+            fitAddonInstance.fit(); // Fit immediately
+            // Write a starting message directly here to confirm it works
+            xtermInstance.write('Xterm Initialized and Ready.\r\n');
+            
+            writeToTerminal('Interface Ready...', true);
+        };
+
+
+        const setupEventHandlers = () => {
+            // --- Updated RUN CODE Button Event Listener ---
+            document.getElementById('runButton').addEventListener('click', async () => { 
+                //1. Disable button and show status
+                document.getElementById('runButton').disabled = true;
+                writeToTerminal('\x1b[33;1mSending code to compiler...\x1b[0m', true);
+                
+                // 🛑 CRITICAL FIX: Get the current code and language values
+                const code = monacoEditor.getValue(); 
+                const language = currentLanguage; 
+                
+                // 2. Execute code via the proxy
+                const result = await executeCode(code, language);
+
+                // 3. Process and Display Output
+                let terminalOutput = '';
+                // ... (rest of your result handling logic is correct)
+                
+                // Check if the execution was successful
+                if (result.isExecutionSuccess === true) { 
+                    terminalOutput += `\x1b[32;1m--- Execution Successful ---\x1b[0m\r\n`;
+                    terminalOutput += result.output; 
+                    terminalOutput += `\r\n\n\x1b[32;1mProcess finished in ${result.cpuTime}s. (Memory: ${result.memory}KB)\x1b[0m`;
+                } else {
+                    // ... (Failure handling) ...
+                    terminalOutput += `\x1b[31;1m--- Execution Failed (Status ${result.statusCode}) ---\x1b[0m\r\n`;
+                    terminalOutput += result.output || result.error || "An unknown error occurred.";
+                    terminalOutput += `\r\n\x1b[31;1mProcess exited.\x1b[0m`;
+                }
+
+                writeToTerminal(terminalOutput, true);
+
+                // 4. Re-enable button
+                document.getElementById('runButton').disabled = false;
+            });
+
+           // --- NEW SAVE FILE Button Event Listener ---
+            document.getElementById('saveButton').addEventListener('click', saveCode);
+            // AI CHECK Button
+            document.getElementById('aiCheckButton').addEventListener('click', () => {
+                if (!monacoEditor) {
+                    writeToTerminal('Editor not initialized yet. Please wait.', true);
+                    return;
+                }
+                
+                const code = monacoEditor.getValue();
+                writeToTerminal(`Executing AI Detection check for ${currentLanguage.toUpperCase()} code...`, true);
+                
+                // Set AI detection to "Checking..." state
+                aiResultElement.className = 'flex-1 flex items-center justify-center p-4 text-center text-lg font-semibold text-blue-500 bg-blue-50 transition-all duration-300';
+                aiResultElement.innerHTML = '<span class="text-2xl mr-2 animate-spin">🔄</span> Analyzing code for AI similarity...';
+
+                // Simulate network delay
+                setTimeout(() => {
+                    writeToTerminal('AI Detection complete. See status panel for results.', true);
+                    simulateAIDetection(code);
+                }, 1000); 
+            });
+
+            // Global Resize Listener for Monaco and Xterm
+            window.addEventListener('resize', () => {
+                if (monacoEditor) monacoEditor.layout();
+                if (fitAddonInstance) fitAddonInstance.fit();
+            });
+        };
+
+
+        // --- Main Startup ---
+        window.onload = function() {
+            initXterm();
+            setupLanguageSwitcher(); // Must run before initMonaco to set initial language variable
+            initMonaco();
+            setupEventHandlers();
+        };
+
+    </script>
+</body>
+</html>
