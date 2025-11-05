@@ -81,8 +81,11 @@ app.post('/api/execute', async (req, res) => {
     }
 });
 
-// 5. Start the server
-app.listen(PORT, () => {
+// *5. Start the server
+/*app.listen(PORT, () => {
     console.log(`\n\n✅ Compiler Proxy Server running on http://localhost:${PORT}`);
     console.log('Backend is ready to receive requests from your frontend.');
 });
+*/
+// 5. Export the Express app for Vercel Serverless Function 
+modul.exports = app;
