@@ -1,6 +1,6 @@
-#  DEVRate Compiler Sandbox
+#  DEVRate Compiler 
 
-Trial web
+Trial web - for ai detection model
 
 ##  Features
 
@@ -12,7 +12,7 @@ Trial web
 
 ---
 
-## 🛠️ Technology Stack
+##  Technology Stack
 
 This application is primarily a **client-side interface** built using modern web technologies:
 
@@ -23,7 +23,6 @@ This application is primarily a **client-side interface** built using modern web
 
 ---
 
-The application automatically suggests a file name based on the selected language when clicking "⬇ Save File":
 
 | Language | Monaco ID | Suggested File Extension |
 | :--- | :--- | :--- |
